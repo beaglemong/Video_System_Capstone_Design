@@ -1,0 +1,137 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+img = cv2.imread('img64.jpg', 0)
+M, N = img.shape
+P, Q = 2*M, 2*N
+padd_img = np.zeros((P, Q))
+padd_img[:M, :N] = img
+
+padd_img_new = np.zeros((P, Q))
+for x in range(P):
+    for y in range(Q):
+        padd_img_new[x, y] = padd_img[x, y] * ((-1) ** (x + y))
+
+
+def DFT(padded_img):  # DFT
+    N, M = padded_img.shape
+    dft2d_temp = np.zeros((N, M), dtype=complex)
+    dft2d = np.zeros((N, M), dtype=complex)
+
+    for k in range(M):
+        for l in range(N):
+            sum_1 = 0.0
+            for n in range(N):
+                e1 = np.exp(-2j * np.pi * (l * n) / N)
+                sum_1 += padded_img[k, n] * e1
+            dft2d_temp[k, l] = sum_1
+
+    for k in range(M):
+        for l in range(N):
+            sum_2 = 0.0
+            for m in range(M):
+                e2 = np.exp(-2j * np.pi * (k * m) / M)
+                sum_2 += dft2d_temp[m, l] * e2
+            dft2d[k, l] = sum_2
+    return dft2d
+
+
+
+dft2d = DFT(padd_img_new)
+plt.imshow(dft2d.real, cmap='gray')
+plt.show()
+
+
+def ideal_LPF(image):
+    M, N = image.shape
+    H = np.zeros((M, N))
+    D = np.zeros((M, N))
+    U0 = int(M / 2)
+    V0 = int(N / 2)
+    # cut off
+    D0 = 10
+    for u in range(M):
+        for v in range(N):
+            u2 = np.power(u, 2)
+            v2 = np.power(v, 2)
+            D[u, v] = np.sqrt(u2 + v2)
+
+    for u in range(M):
+        for v in range(N):
+            if D[np.abs(u - U0), np.abs(v - V0)] <= D0:
+                H[u, v] = 1
+            else:
+                H[u, v] = 0
+    return H
+
+
+lpf = ideal_LPF(dft2d)
+plt.imshow(lpf, cmap='gray')
+plt.show()
+
+G = np.multiply(dft2d, lpf)
+plt.imshow(G.real, cmap='gray')
+plt.show()
+
+
+def BHPF(image):  # Butterworth High Pass Filter
+    M, N = image.shape
+    D = np.zeros((M, N))
+    H = np.zeros((M, N))
+    U0 = int(M / 2)
+    V0 = int(N / 2)
+    D0 = 32  # cutoff
+    n = 2  # 차수
+
+    for u in range(M):
+        for v in range(N):
+            u2 = np.power(u - U0, 2)
+            v2 = np.power(v - V0, 2)
+            D[u, v] = np.sqrt(u2 + v2)  # D[u, v] 정의
+
+    for u in range(M):
+        for v in range(N):
+                H[u, v] = 1 / (1 + np.power((D0 / D[u, v]), 2 * n))  #H[u, v] 정의
+    return H
+
+
+hpf = BHPF(dft2d)
+plt.imshow(hpf, cmap='gray')
+plt.show()
+
+G = np.multiply(dft2d, hpf)
+plt.imshow(G.real, cmap='gray')
+plt.show()
+
+
+def IDFT(dft_image):
+    M, N = dft_image.shape
+    idft2d = np.zeros((M, N), dtype=complex)
+
+    for k in range(M):
+        for l in range(N):
+            sum_1 = 0.0
+            for n in range(N):
+                e1 = np.exp(2j * np.pi * (l * n) / N)
+                sum_1 += dft_image[n, :] * e1
+            idft2d[k, :] = sum_1
+
+    for k in range(M):
+        for l in range(N):
+            sum_2 = 0.0
+            for m in range(M):
+                e2 = np.exp(2j * np.pi * (k * m) / M)
+                sum_2 += dft_image[:, m] * e2
+            idft2d[:, l] = sum_2
+
+    return idft2d
+
+idft2d = IDFT(G)
+
+for x in range(P):
+    for y in range(Q):
+        idft2d[x, y] = idft2d[x, y] * ((-1) ** (x + y))
+
+plt.imshow(idft2d[:int(P/2), :int(Q/2)].real, cmap='gray')
+plt.show()
